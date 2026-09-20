@@ -42,33 +42,48 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 TEST_YEARS = (2023, 2024, 2025)
 
 
-def sets(cols):
-    """Багана → хоёр багц: зөвхөн үнэ, ба бүтэн.
+def load(path, horizon):
+    """Өгөгдлийг уншаад шинжийн жагсаалтыг ТҮҮНИЙ ДАРААХ нэмэлтээс
+    ХАМГААРАЛТАЙ гаргана.
 
-    `y` нь ЗОРИЛТОТ багана — энд орвол загвар хариултаа шууд хараад
-    100% нарийвчлал өгнө. Нэг удаа яг ингэж болсон тул нэрээр нь
-    хассаны дээр доорх guard() давхар шалгана.
+    Яагаад ингэж бичсэн бэ: хоёр удаа дараалан ижил алдаа гарсан —
+    зорилтот багана (`y`, дараа нь `mag`) өгөгдөлд нэмэгдсэний ДАРАА
+    шинжийн жагсаалтыг `d.columns`-оос гаргасан тул зорилт өөрөө шинж
+    болж орж, 100% нарийвчлал, 0.998 зэрэглэл өгч байв.
+
+    Нэрийг нь хасах жагсаалт нэмэх нь засвар БИШ — дараагийн шинэ
+    зорилт мөн адил мултарна. Тиймээс шинжийн жагсаалтыг ФАЙЛЫН
+    анхны баганаас гаргаж, дараа нэмэгдсэн юу ч орох боломжгүй болгов.
     """
-    drop = {'date', 'year', 'day_of_week', 'price_close', 'y'}
+    d = pd.read_csv(path, parse_dates=['date'])
+    base = list(d.columns)                   # ← файлд байсан багана ЗӨВХӨН
+    d['year'] = d.date.dt.year
+    lab = f'label_return_{horizon}d'
+    d = d[d[lab].notna()].copy()
+    return d, sets(base), lab
+
+
+def sets(cols):
+    """ФАЙЛЫН багана → хоёр багц: зөвхөн үнэ, ба бүтэн."""
+    drop = {'date', 'year', 'day_of_week', 'price_close'}
     feat = [c for c in cols if c not in drop and not c.startswith('label')]
     ext = [c for c in feat if c.startswith(('macro_', 'mkt_'))]
     return {'үнэ': [c for c in feat if c not in ext], 'бүтэн': feat}
 
 
-def guard(d, feat, y_col):
+def guard(d, feat, target):
     """Нэвчилтийн хамгаалалт — сэжигтэй бол ШУУД зогсооно.
 
-    Санамсаргүй нэмэгдсэн нэг багана бүх дүнг утгагүй болгодог. Тэр нь
-    чимээгүй өнгөрвөл «загвар ажиллаж байна» гэж итгэчихнэ.
+    `target` нь баганын НЭР биш, зорилтот УТГУУДЫН цуваа. Ингэснээр
+    зорилтыг хэрхэн нэрлэснээс үл хамаарч шалгагдана.
     """
-    bad = [c for c in feat if c == y_col or c.startswith('label')]
+    bad = [c for c in feat if c.startswith('label')]
     if bad:
-        raise SystemExit(f'НЭВЧИЛТ: зорилтот багана шинжид орсон — {bad}')
-    y = d[y_col]
-    hot = [(c, abs(d[c].corr(y))) for c in feat if d[c].dtype.kind in 'fi']
+        raise SystemExit(f'НЭВЧИЛТ: шошгын багана шинжид орсон — {bad}')
+    hot = [(c, abs(d[c].corr(target))) for c in feat if d[c].dtype.kind in 'fi']
     hot = [(c, v) for c, v in hot if v == v and v > .5]
     if hot:
-        raise SystemExit('НЭВЧИЛТ: шошготой хэт нийцсэн шинж — '
+        raise SystemExit('НЭВЧИЛТ: зорилттой хэт нийцсэн шинж — '
                          + ', '.join(f'{c} ({v:.2f})' for c, v in hot))
 
 
@@ -115,15 +130,10 @@ def main():
     ap.add_argument('--horizon', type=int, default=1, choices=(1, 3, 5))
     a = ap.parse_args()
 
-    d = pd.read_csv(os.path.join(DATA, a.data), parse_dates=['date'])
-    d['year'] = d.date.dt.year
-    lab = f'label_return_{a.horizon}d'
-    d = d[d[lab].notna()].copy()
+    d, S, lab = load(os.path.join(DATA, a.data), a.horizon)
     d['y'] = (d[lab] > 0).astype(int)
-
-    S = sets(d.columns)
     for _n, _f in S.items():
-        guard(d, _f, 'y')
+        guard(d, _f, d['y'])
     print(f'{a.data}: {len(d):,} мөр   давхрага {a.horizon} хоног   '
           f'зардал {a.cost}%')
     print('   багцууд: ' + ',  '.join(f'{n} = {len(f)} шинж'
