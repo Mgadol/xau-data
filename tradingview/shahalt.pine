@@ -8,17 +8,20 @@
 //  ── ДҮРЭМ ────────────────────────────────────────────────────────
 //   1. Шахалт: ATR14 ÷ ATR100 ≤ 0.80
 //   2. Хил: 20 барын дундаж ± 1.5 ATR (өргөн нь яг 3 ATR)
-//   3. Зөвхөн ДЭЭШ задрал
+//   3. Зөвхөн ДЭЭШ задрал дээр арилжаа
 //   4. Хил дээр ор — баталгаа бүү хүлээ. Нээлт хилээс хэтэрсэн бол
 //      нээлтийн үнээр (тэр үнээр л авч чадна)
 //   5. Стоп 2 ATR, зорилт 1 ATR → 4 ATR
 //   6. 5 барт задрал ирэхгүй бол болих
+//   7. Доош задрал болсны дараа дээш задралыг АВАХГҮЙ (доор үзнэ үү)
 //
 //  ── ЗӨВХӨН ӨДРИЙН ГРАФИК ─────────────────────────────────────────
 //   Энэ кодын логикоор давхрага бүрийг жинхэнэ оролтын үнээр
 //   хэмжихэд (спред $0.25, зорилт 4 ATR):
 //
 //     давхрага     n       R        t     ялсан   жилд   эерэг жил
+//     15 мин    8259   −0.164  −12.24     36%    514      1/17
+//     30 мин    4078   −0.130   −6.59     36%    254      3/17
 //      1 цаг    2119   −0.125   −4.58     35%    132      4/17
 //      2 цаг     672   +0.069   +1.39     43%     42     12/17
 //      3 цаг     532   −0.016   −0.28     39%     33      8/17
@@ -27,7 +30,16 @@
 //      8 цаг     140   +0.138   +1.29     44%      9     13/16
 //      ӨДӨР       66   +0.547   +3.48     61%      3     12/20
 //
-//   1 цаг нь САЛЖ алдагдалтай (t = −4.58). Бусад нь тэгд ойр.
+//   15 МИНУТ НЬ ХАМГИЙН МУУ — t = −12.24, 17 жилийн ганцхан жилд
+//   эерэг. Спред тэглэсэн ч сөрөг ($0.10 дээр −0.095R). Жилд 514
+//   дохио × −0.164R = жилд −84R.
+//
+//   ГЭСЭН Ч ГРАФИКТ САЙН ХАРАГДДАГ. Гурван шалтгаан: (1) ялагчид
+//   нүдэнд тусдаг, шууд стоп цохисон нь алга болдог; (2) ялахдаа
+//   4 ATR, алдахдаа 2 ATR явдаг тул ялалт нь илүү үнэмшилтэй
+//   харагдана; (3) 500 дохионоос гайхалтай жишээ заавал олдоно.
+//   Графикаар ийм зүйлийг шийдэж БОЛОХГҮЙ.
+//
 //   Өдрийн график ганцаараа үлдэв:
 //
 //     n = 66 (2005–2026)    +0.547R    t = 3.48
@@ -36,6 +48,23 @@
 //     2005–2015 +0.471R     2016–2026 +0.622R
 //     сайн 5 арилжааг хассан ч +0.428R
 //     спред $1.00-д ч +0.521R
+//
+//  ── ДООШ ЗАДРАЛЫН ДАРААХ ХОРИГ ───────────────────────────────────
+//   Доош задрал болсны дараа удалгүй дээш задрал гарвал АВАХГҮЙ.
+//   Тэр нь зурвасыг ХОЁР ТИЙШ нь эвдсэн зах — хил утгаа алдсан
+//   байна. Хэмжсэн (өдрийн график):
+//
+//     хориггүй   n=66  +0.547R  ялсан 61%  нийт +36.1R
+//     хоригтой   n=63  +0.622R  ялсан 63%  нийт +39.2R
+//
+//     2005–2015  +0.471 → +0.521     2016–2026  +0.622 → +0.725
+//
+//   Хоёр үед ХОЁУЛАНД нь эерэг. Хаагдсан 7 дохионы дундаж −0.315R;
+//   санамсаргүйгээр ийм муу 7-г сонгох магадлал 3.1%.
+//
+//   Болгоомжлол: 7 дохио гэдэг цөөн бөгөөд +0.075R нь n=66 дээрх
+//   стандарт алдаа (±0.16R) дотор багтана. Механизм үнэмшилтэй,
+//   хоёр үед эерэг — гэхдээ «батлагдсан» гэж хэлэхэд эрт.
 //
 //  ── ЮУГ ХАССАН, ЯАГААД ───────────────────────────────────────────
 //   Бүгдийг ЭНЭ кодын логик дээр тусад нь хэмжив (өдрийн график):
@@ -62,8 +91,11 @@
 //     буурлын үед ашиг ~0 болсон.
 //   · Задралын 12% нь 0.5 ATR ч явахгүй унтардаг. Үргэлжлэлийн
 //     тархалт: 5%-д 0.21 ATR, медиан 1.75, 95%-д 7.97.
-//   · БОГИНО ТАЛ: доош задрал бүх тестэд алдагдалтай (−0.11…−0.15R).
-//     Код нь зөвхөн тэмдэглэнэ, дохио өгөхгүй.
+//   · Хамгийн урт алдагдлын цуваа 5 дохио, хамгийн гүн унал −5.4R.
+//     Байршлын хэмжээг −6R-ийг тэсэхээр тавь.
+//   · БОГИНО ТАЛ: доош задрал дангаараа бүх тестэд алдагдалтай
+//     (−0.11…−0.15R). Код нь ЗУРНА, гэхдээ дохио өгөхгүй — түүний
+//     цорын ганц үүрэг нь дээш задралыг хориглох.
 //
 //  Шалгах: python3 shinjilgee/e1_pine.py
 // ─────────────────────────────────────────────────────────────────────
@@ -102,17 +134,29 @@ maxBars = input.int(5, "Задрал хүлээх бар", minval = 1, group = g
      tooltip = "Задрал ихэвчлэн 2.7–3.2 барт ирдэг.")
 holdBars = input.int(15, "Барих дээд бар", minval = 1, group = gT)
 
+gD = "Доош задрал"
+blockUp = input.bool(true, "Доош задралын дараа дээшийг хориглох",
+     group = gD, tooltip = "Зурвасыг хоёр тийш нь эвдсэн зах — хил " +
+     "утгаа алдсан байна. Хэмжсэн: +0.547R → +0.622R (n 66→63), " +
+     "хоёр үед хоёуланд нь эерэг. ГЭХДЭЭ 7 дохионы ялгаа тул " +
+     "баталгаатай гэж үзэж болохгүй.")
+blockBars = input.int(15, "Хоригийн дээд бар", minval = 1, group = gD,
+     tooltip = "Хориг нь доош задрал стоп/зорилтод хүрэхэд эсвэл энэ " +
+     "хугацаа өнгөрөхөд тайлагдана. 15-аар хэмжсэн — өөрчлөх бол " +
+     "эхлээд e1_pine.py дээр хэмж.")
+
 gV = "Харагдац"
 colBars = input.bool(true, "Лааг будах", group = gV,
-     tooltip = "Шахагдсан лаа шар, задралын лаа ногоон болно.")
+     tooltip = "Шахагдсан лаа шар, дээш задрал ногоон, доош улаан.")
 showLbl = input.bool(true, "Лаан дээр шошго", group = gV,
      tooltip = "Шахалт эхлэх ба задралын лаан дээр тоог нь шууд бичнэ. " +
      "Арилжаа явж байхад оролт/стоп/зорилтын шошго баруун талд гарна.")
 showBands = input.bool(true, "Зурвас харуулах", group = gV)
 showLvls = input.bool(true, "Түвшин харуулах", group = gV)
 showPanel = input.bool(true, "Самбар харуулах", group = gV)
-showShort = input.bool(true, "Доош задрал тэмдэглэх", group = gV,
-     tooltip = "ЗӨВХӨН мэдээлэл — богино тал бүх тестэд алдагдалтай.")
+showShort = input.bool(true, "Доош задрал зурах", group = gV,
+     tooltip = "ЗӨВХӨН харагдац. Богино тал дангаараа бүх тестэд " +
+     "алдагдалтай тул дохио өгдөггүй.")
 panelPos = input.string("Баруун дээд", "Самбарын байрлал", group = gV,
      options = ["Баруун дээд", "Баруун доод", "Зүүн дээд", "Зүүн доод"])
 txtSize = input.string("Жижиг", "Бичгийн хэмжээ", group = gV,
@@ -161,6 +205,7 @@ var int   aBar   = na
 var bool  aLive  = false
 var bool  aFired = false
 
+// Дээш арилжаа
 var float tEntry = na
 var float tStop  = na
 var float tT1    = na
@@ -168,6 +213,13 @@ var float tT2    = na
 var int   tBar   = na
 var bool  tOpen  = false
 var bool  tHit1  = false
+
+// Доош задрал — ЗУРАГЛАЛ ба ХОРИГ. Арилжааны дохио БИШ.
+var float dEntry = na
+var float dStop  = na
+var float dT2    = na
+var int   dBar   = na
+var bool  dOpen  = false
 
 // ── Дохио ────────────────────────────────────────────────────────────
 waited = na(aBar) ? 0 : bar_index - aBar
@@ -178,18 +230,23 @@ fresh  = aLive and not aFired and waited >= 1 and waited <= maxBars
 // R-ийг бууруулдаг). Орох нь зөв, гэхдээ жинхэнэ үнээр — стоп ба
 // зорилтыг тэрнээс нь хэмжинэ.
 gapUp = not na(aUp) and open >= aUp
+gapDn = not na(aDn) and open <= aDn
 brkUp = fresh and not na(aUp) and high >= aUp
 brkDn = fresh and not na(aDn) and low <= aDn
-entryPx = gapUp ? open : aUp
+entryPx   = gapUp ? open : aUp
+dnEntryPx = gapDn ? open : aDn
 
-longSig = brkUp and not tOpen
+// Доош задралын хориг. Нэг барт хоёр тал зэрэг эвдэгдвэл дээш давуу.
+blocked = blockUp and dOpen
+longSig = brkUp and not tOpen and not blocked
+downSig = brkDn and not brkUp and not tOpen and not dOpen
 
 // Нэг зэвсэглэлд нэг л задрал. Шахалт үргэлжилж байвал доор дахин
 // зэвсэглэнэ.
 if brkUp or brkDn
     aFired := true
 
-// ── Арилжаа ──────────────────────────────────────────────────────────
+// ── Дээш арилжаа ─────────────────────────────────────────────────────
 if longSig
     tEntry := entryPx
     tStop  := entryPx - stopAtr * aAtr
@@ -198,6 +255,14 @@ if longSig
     tBar   := bar_index
     tOpen  := true
     tHit1  := false
+
+// ── Доош задрал — зураглал ба хориг ──────────────────────────────────
+if downSig
+    dEntry := dnEntryPx
+    dStop  := dnEntryPx + stopAtr * aAtr
+    dT2    := dnEntryPx - t2Atr * aAtr
+    dBar   := bar_index
+    dOpen  := true
 
 // Стоп ТҮРҮҮЛЖ шалгагдана — барын дотор аль нь эхэлснийг мэдэх аргагүй
 // тул муу талыг нь сонгоно.
@@ -211,6 +276,15 @@ if tOpen
             tOpen := false
         else if bar_index - tBar >= holdBars
             tOpen := false
+
+// Доош тал нь ижил дүрмээр «дуусна» — хориг тэр үед тайлагдана.
+if dOpen
+    if high >= dStop
+        dOpen := false
+    else if low <= dT2
+        dOpen := false
+    else if bar_index - dBar >= blockBars
+        dOpen := false
 
 // ── Анкр ─────────────────────────────────────────────────────────────
 if sqOn
@@ -244,19 +318,30 @@ plot(showLvls and tOpen ? tT1 : na, "Зорилт 1", color.new(cGood, 45), 1,
 plot(showLvls and tOpen ? tT2 : na, "Зорилт 2", color.new(cGood, 0), 1,
      plot.style_linebr)
 
+// Доош талын түвшин нь СУДАЛГААНЫ харагдац — бүдэг, дохио биш.
+plot(showLvls and showShort and dOpen ? dEntry : na, "Доош эвдрэл",
+     color.new(cDim, 25), 1, plot.style_linebr)
+plot(showLvls and showShort and dOpen ? dStop : na, "Доош буцалт",
+     color.new(cBad, 55), 1, plot.style_linebr)
+
 bgcolor(sqOn ? color.new(cWarn, 94) : na, title = "Шахалтын дэвсгэр")
 
 plotshape(sqStart, "Шахалт эхэллээ", shape.diamond, location.belowbar,
      color.new(cWarn, 0), size = size.tiny)
 plotshape(longSig, "ДЭЭШ задрал — оролт", shape.triangleup,
      location.belowbar, color.new(cGood, 0), size = size.small)
-plotshape(showShort and brkDn, "Доош задрал (зөвхөн мэдээлэл)",
-     shape.xcross, location.abovebar, color.new(cBad, 40), size = size.tiny)
+plotshape(showShort and downSig, "ДООШ задрал (дохио БИШ)",
+     shape.triangledown, location.abovebar, color.new(cBad, 25),
+     size = size.small)
+// Хоригт таслагдсан дээш задрал — юу болсныг харуулна.
+plotshape(brkUp and blocked and not tOpen, "Дээш задрал — ХОРИГДСОН",
+     shape.xcross, location.belowbar, color.new(cDim, 20), size = size.tiny)
 
 // ── Лаан дээрх өнгө ба шошго ─────────────────────────────────────────
 // Булан дахь самбар руу харахгүйгээр лаанаасаа шууд уншихын тулд.
 barcolor(not colBars ? na :
      longSig ? cGood :
+     (showShort and downSig) ? cBad :
      sqOn ? color.new(cWarn, 35) : na, title = "Лааны өнгө")
 
 // Шахалт эхэлсэн лаан дээр утгыг нь шууд бичнэ.
@@ -264,7 +349,7 @@ if showLbl and sqStart
     label.new(bar_index, low, "ШАХАЛТ " + str.tostring(sq, "#.00"),
          style = label.style_label_up, color = color.new(cWarn, 15),
          textcolor = #14181f, size = size.tiny,
-         tooltip = "Хил: " + f2(dnB) + " … " + f2(upB) +
+         tooltip = "Доод хил: " + f2(dnB) + "\nДээд хил: " + f2(upB) +
          "\nЗадрал " + str.tostring(maxBars) + " барт ирэхгүй бол болих.")
 
 // Задралын лаан дээр БҮХ тоог нэг дор.
@@ -276,6 +361,14 @@ if showLbl and longSig
          textcolor = #0d1117, size = size.small,
          tooltip = "Эрсдэл " + str.tostring(stopAtr, "#.#") + " ATR = " +
          f2(tEntry - tStop) + "\nз1 нь 74% хүрдэг.")
+
+if showLbl and showShort and downSig
+    label.new(bar_index, low, "ДООШ " + f2(dEntry),
+         style = label.style_label_up, color = color.new(cBad, 25),
+         textcolor = #ffffff, size = size.tiny,
+         tooltip = "ДОХИО БИШ — богино тал бүх тестэд алдагдалтай " +
+         "(−0.11…−0.15R).\nҮүрэг нь дээш задралыг " +
+         str.tostring(blockBars) + " бар хүртэл хориглох.")
 
 // Арилжаа явж байхад түвшний шошго СҮҮЛИЙН лаан дээр гарч, зөвхөн
 // нэг хувь үлдэнэ (өмнөхийг нь устгана).
@@ -303,6 +396,11 @@ if showLbl and barstate.islast
         lb2 := label.new(bar_index, tT2, "з2 " + f2(tT2),
              style = label.style_label_left, color = color.new(cGood, 15),
              textcolor = #0d1117, size = size.tiny)
+    else if blocked
+        lbA := label.new(bar_index, nz(aUp, close), "ХОРИГДСОН · " +
+             str.tostring(blockBars - (bar_index - dBar)) + " бар",
+             style = label.style_label_left, color = color.new(cDim, 20),
+             textcolor = #0d1117, size = size.tiny)
     else if aShow
         lbA := label.new(bar_index, aUp, "ор " + f2(aUp) + "  ·  " +
              str.tostring(maxBars - waited) + " бар",
@@ -326,6 +424,10 @@ vdCol = cDim
 if tOpen
     verdict := "АРИЛЖАА ЯВЖ БАЙНА" + (tHit1 ? " · зорилт 1 хүрсэн" : "")
     vdCol := cGood
+else if blocked
+    verdict := "ХОРИГДСОН — доош задралаас хойш " +
+         str.tostring(bar_index - dBar) + " бар. Дээшийг авахгүй."
+    vdCol := cBad
 else if sqOn
     verdict := "БЭЛЭН — дээд хил дээр ор, баталгаа бүү хүлээ"
     vdCol := cGood
@@ -378,8 +480,10 @@ if showPanel and barstate.islast
          (atrF > 0 ? str.tostring(wid / atrF, "#.00") : "—") + " ATR", cDim)
     row(3, "Давхрага", timeframe.period, tfTxt, tfCol)
     row(4, "Оролт · дээд хил", f2(lvlBase),
+         blocked ? "ХОРИГДСОН — доош задрал болсон" :
          gapUp and aShow ? "нээлт ХЭТЭРСЭН — нээлтийн үнээр" :
-         "баталгаа хүлээхгүй", gapUp and aShow ? cWarn : cInk)
+         "баталгаа хүлээхгүй",
+         blocked ? cBad : gapUp and aShow ? cWarn : cInk)
     row(5, "Стоп · " + str.tostring(stopAtr, "#.#") + " ATR",
          f2(lvlBase - stopAtr * lvlAtr), "= 1R", cBad)
     row(6, "Зорилт 1 · " + str.tostring(t1Atr, "#.#") + " ATR",
@@ -393,21 +497,21 @@ if showPanel and barstate.islast
          "0.5 ATR ч явахгүй", color.new(cDim, 10), cBg)
 
 // ── Сэрэмжлүүлэг ─────────────────────────────────────────────────────
+// Доош задралд сэрэмжлүүлэг ЗОРИУД байхгүй — тэр нь дохио биш.
 alertcondition(sqStart, "Шахалт эхэллээ",
      "Шахалт эхэллээ — тохиргоо идэвхжив")
 alertcondition(longSig, "ДЭЭШ задрал — оролт", "ДЭЭШ задрал")
-alertcondition(brkDn, "Доош задрал (мэдээлэл)",
-     "Доош задрал — судалгаагаар алдагдалтай, дохио БИШ")
 
 if sqStart
     alert("ШАХАЛТ ЭХЭЛЛЭЭ · " + syminfo.ticker + " " + timeframe.period +
          "\nsq = " + str.tostring(sq, "#.00") +
          "\nХил: " + f2(dnB) + " … " + f2(upB) +
-         "\nЗадрал 5 барт ирэхгүй бол болих.",
+         "\nЗадрал " + str.tostring(maxBars) + " барт ирэхгүй бол болих.",
          alert.freq_once_per_bar_close)
 
 if longSig
     alert("ДЭЭШ ЗАДРАЛ · " + syminfo.ticker + " " + timeframe.period +
          "\nОролт " + f2(tEntry) + "   Стоп " + f2(tStop) +
-         "\nЗорилт1 " + f2(tT1) + "   Зорилт2 " + f2(tT2),
+         "\nЗорилт1 " + f2(tT1) + "   Зорилт2 " + f2(tT2) +
+         "\nATR " + f2(aAtr) + "   1R = " + f2(tEntry - tStop),
          alert.freq_once_per_bar_close)
