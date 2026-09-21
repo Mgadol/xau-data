@@ -69,7 +69,8 @@
 // ─────────────────────────────────────────────────────────────────────
 
 //@version=6
-indicator("Шахалт — XAUUSD", "ШАХАЛТ", overlay = true)
+indicator("Шахалт — XAUUSD", "ШАХАЛТ", overlay = true,
+     max_labels_count = 500)
 
 // ── Оролтууд ─────────────────────────────────────────────────────────
 gS = "Шахалт"
@@ -102,6 +103,11 @@ maxBars = input.int(5, "Задрал хүлээх бар", minval = 1, group = g
 holdBars = input.int(15, "Барих дээд бар", minval = 1, group = gT)
 
 gV = "Харагдац"
+colBars = input.bool(true, "Лааг будах", group = gV,
+     tooltip = "Шахагдсан лаа шар, задралын лаа ногоон болно.")
+showLbl = input.bool(true, "Лаан дээр шошго", group = gV,
+     tooltip = "Шахалт эхлэх ба задралын лаан дээр тоог нь шууд бичнэ. " +
+     "Арилжаа явж байхад оролт/стоп/зорилтын шошго баруун талд гарна.")
 showBands = input.bool(true, "Зурвас харуулах", group = gV)
 showLvls = input.bool(true, "Түвшин харуулах", group = gV)
 showPanel = input.bool(true, "Самбар харуулах", group = gV)
@@ -120,6 +126,10 @@ cDim  = #787b86
 cInk  = #d1d4dc
 cBg   = color.new(#1b1f2a, 15)
 cHead = color.new(#2a3142, 0)
+
+// Үнийг хэрэгслийн нарийвчлалаар бичнэ. Шошго ба самбар хоёулаа энийг
+// хэрэглэнэ — тиймээс өнгөний дараа шууд тодорхойлов.
+f2(float x) => na(x) ? "—" : str.tostring(x, format.mintick)
 
 // ── Суурь тооцоо ─────────────────────────────────────────────────────
 // ta.atr() нь Уайлдерын жигдрүүлэлт (RMA) — судалгаа нь ЭНГИЙН дундаж
@@ -243,6 +253,62 @@ plotshape(longSig, "ДЭЭШ задрал — оролт", shape.triangleup,
 plotshape(showShort and brkDn, "Доош задрал (зөвхөн мэдээлэл)",
      shape.xcross, location.abovebar, color.new(cBad, 40), size = size.tiny)
 
+// ── Лаан дээрх өнгө ба шошго ─────────────────────────────────────────
+// Булан дахь самбар руу харахгүйгээр лаанаасаа шууд уншихын тулд.
+barcolor(not colBars ? na :
+     longSig ? cGood :
+     sqOn ? color.new(cWarn, 35) : na, title = "Лааны өнгө")
+
+// Шахалт эхэлсэн лаан дээр утгыг нь шууд бичнэ.
+if showLbl and sqStart
+    label.new(bar_index, low, "ШАХАЛТ " + str.tostring(sq, "#.00"),
+         style = label.style_label_up, color = color.new(cWarn, 15),
+         textcolor = #14181f, size = size.tiny,
+         tooltip = "Хил: " + f2(dnB) + " … " + f2(upB) +
+         "\nЗадрал " + str.tostring(maxBars) + " барт ирэхгүй бол болих.")
+
+// Задралын лаан дээр БҮХ тоог нэг дор.
+if showLbl and longSig
+    label.new(bar_index, high,
+         "ОРОЛТ " + f2(tEntry) + "\nстоп " + f2(tStop) +
+         "\nз1 " + f2(tT1) + "\nз2 " + f2(tT2),
+         style = label.style_label_down, color = color.new(cGood, 10),
+         textcolor = #0d1117, size = size.small,
+         tooltip = "Эрсдэл " + str.tostring(stopAtr, "#.#") + " ATR = " +
+         f2(tEntry - tStop) + "\nз1 нь 74% хүрдэг.")
+
+// Арилжаа явж байхад түвшний шошго СҮҮЛИЙН лаан дээр гарч, зөвхөн
+// нэг хувь үлдэнэ (өмнөхийг нь устгана).
+var label lbE = na
+var label lbS = na
+var label lb1 = na
+var label lb2 = na
+var label lbA = na
+if showLbl and barstate.islast
+    label.delete(lbE)
+    label.delete(lbS)
+    label.delete(lb1)
+    label.delete(lb2)
+    label.delete(lbA)
+    if tOpen
+        lbE := label.new(bar_index, tEntry, "оролт " + f2(tEntry),
+             style = label.style_label_left, color = color.new(cInk, 20),
+             textcolor = #0d1117, size = size.tiny)
+        lbS := label.new(bar_index, tStop, "стоп " + f2(tStop),
+             style = label.style_label_left, color = color.new(cBad, 15),
+             textcolor = #0d1117, size = size.tiny)
+        lb1 := label.new(bar_index, tT1, "з1 " + f2(tT1),
+             style = label.style_label_left, color = color.new(cGood, 45),
+             textcolor = #0d1117, size = size.tiny)
+        lb2 := label.new(bar_index, tT2, "з2 " + f2(tT2),
+             style = label.style_label_left, color = color.new(cGood, 15),
+             textcolor = #0d1117, size = size.tiny)
+    else if aShow
+        lbA := label.new(bar_index, aUp, "ор " + f2(aUp) + "  ·  " +
+             str.tostring(maxBars - waited) + " бар",
+             style = label.style_label_left, color = color.new(cGood, 25),
+             textcolor = #0d1117, size = size.tiny)
+
 // ── Самбар ───────────────────────────────────────────────────────────
 tfm = timeframe.in_seconds() / 60.0
 isDay = tfm >= 1440
@@ -296,8 +362,6 @@ span(int r, string s, color fg, color bg) =>
     table.cell(pnl, 1, r, "", bgcolor = bg)
     table.cell(pnl, 2, r, "", bgcolor = bg)
     table.merge_cells(pnl, 0, r, 2, r)
-
-f2(float x) => na(x) ? "—" : str.tostring(x, format.mintick)
 
 lvlBase = tOpen ? tEntry : aShow ? aUp : upB
 lvlAtrR = tOpen or aShow ? aAtr : atrF
