@@ -1,0 +1,531 @@
+// ─────────────────────────────────────────────────────────────────────
+//  ШАХАЛТ — XAUUSD судалгааны загвар
+//
+//  2004–2026 оны 1.44 сая 5 минутын бар дээр хийсэн a1–a28, b1–b9,
+//  c1–c9, d1–d7 шинжилгээнээс ЗӨВХӨН олон удаагийн шалгалт давсан
+//  дүрмүүдийг кодчилов. Дэлгэрэнгүй: DUGNELT.md
+//
+//  ── ЮУ БАТЛАГДСАН ────────────────────────────────────────────────
+//   · Шахалт = ATR14 / ATR100 ≤ 0.80. Тархалтыг ШИЛЖҮҮЛНЭ:
+//     шахагдсан бүлэг 5 хоногт 3.64 ATR явсан, тэлсэн нь 2.30.
+//     3 ATR давах: 47% vs 21%. 21 жилийн 21-д нь ижил чиглэлд —
+//     нэг ч жил урвуугаараа гараагүй.
+//   · Хил: 20 барын дундаж ± 1.5 ATR. Зурвасын өргөн ЯГ 3 ATR.
+//   · Баталгаа хүлээхгүй — хил дээр нь ор (c7: буфер нь зургаагийн
+//     зургаад тохиолдолд R-ийг БУУРУУЛНА).
+//   · Байрлал нь ирмэгийг тодорхойлно (d3): доод хилд ойр +0.064R,
+//     дунд +0.460R, дээд хилд ойр +0.810R.
+//   · Хөлийн чиглэл (d1): сүүлийн эргэлтээс хойшхи чиглэлтэй ижил
+//     задрал +0.671R, эсрэг нь +0.485R. Зургаагийн зургаад эерэг.
+//   · Идэвхийн чиглэл vdir (d2): дэмжих хүчин зүйл, гол нь БИШ —
+//     хэмжээ нь хоёр үеийн хооронд 5 дахин зөрдөг.
+//   · Стоп 2 ATR (таталтын 65–70% багтана: медиан 1.40, 70% 2.13,
+//     80% 2.60, 90% 3.68). Зорилт 1 ATR — 74% хүрдэг, 2 ATR — 45%,
+//     3 ATR — 26%. 3.8 ATR дээр шийдэгдсэн арилжааны R тэгширнэ.
+//   · Сесс (c8): Лондон +0.431R, Ази +0.359, Нью-Йорк +0.086.
+//     Хамгийн шуургатай сесс хамгийн муу — NY-гийн мэдээний үсрэлт
+//     буцдаг.
+//
+//  ── ЭНЭ КОДЫГ ӨӨРИЙГ НЬ ШАЛГАСАН (e1, e2) ────────────────────────
+//   Доорх төлөвт машиныг Python дээр яг адилаар давтаж, 2005–2026
+//   жинхэнэ өгөгдөл дээр гүйлгэв. Энэ явцад d3/d5-д үлдсэн НЭГ
+//   ЗАНГА баригдав: тэдний `collect` нь нээлтийн үнийг огт хардаггүй
+//   тул бар хилээс ДЭЭШ нээгдсэн ч «хил дээр орлоо» гэж тооцдог
+//   байжээ. c8-д яг энэ алдаа нэг удаа баригдсан (+0.527R → +0.219R)
+//   боловч дараагийн шинжилгээнд дамжаагүй байв.
+//
+//   Жинхэнэ оролтын үнээр дахин хэмжихэд (спред $0.25, стоп 2 ATR,
+//   зорилт 4 ATR, байрлал ≥ 0.50):
+//
+//     давхрага   d5-ийн таамаг   ЖИНХЭНЭ   ялсан   жилд   эерэг жил
+//       1 цаг       +0.202       +0.026     41%    67      10/17
+//       2 цаг       +0.434       +0.218     48%    23      14/17
+//       3 цаг       +0.470       +0.174     46%    17       8/17
+//       4 цаг       +0.473       +0.188     45%    12       9/16
+//       6 цаг       +0.379       +0.094     42%     9       8/15
+//       8 цаг       +0.442       +0.111     44%     6       9/15
+//       ӨДӨР        +0.804       +0.551     60%     3      13/20
+//
+//   → ДООД ДАВХРАГЫН ИРМЭГ НЬ БҮХЭЛДЭЭ ТЭР ТААМГААС ГАРЧ БАЙЖЭЭ.
+//     1 цаг нь $0.50 спредэд сөрөг болно. Зөвхөн ӨДРИЙН график
+//     үлдэв: +0.551R, спред $1.00-д ч +0.526R, 20 жилийн 13-д эерэг.
+//     Гэхдээ жилд ердөө ~3 тохиргоо — тэвчээр шаардана.
+//
+//   Мөн хэмжигдсэн зүйл:
+//     · Байрлалын шүүлтүүр энэ хэрэгжилтэд бараг ажиллахгүй
+//       (≥0.50 → +0.551R, ≥0.67 → +0.571R, шүүлтгүй → +0.556R).
+//       Учир нь анкр нь задралын ӨМНӨХ шахагдсан бар тул байрлал
+//       тэр үед аль хэдийн дээгүүр байдаг. Самбарт мэдээлэл болгон
+//       үлдээв, шүүлтүүр гэж бүү найд.
+//     · Хөлийн шүүлтүүр: асаалттай +0.551R (n=60), унтраалттай
+//       +0.517R (n=64). Бага боловч эерэг — d1-тэй нийцнэ.
+//     · Тогтмол босго 0.80 нь судалгааны q20 = 0.834-тэй ижил
+//       ажиллана (+0.551 vs +0.561) — квантиль тооцох шаардлагагүй.
+//     · Задралыг АЛГАСАХ нь буруу: +0.466R болж буурна. Орох нь
+//       зөв, гэхдээ нээлтийн үнээр.
+//
+//  ── ӨДРИЙН ГРАФИКИЙН ТОО ХЭР БАТТАЙ ВЭ ───────────────────────────
+//     n = 60 (2005–2026)      дундаж  +0.551R
+//     стандарт алдаа ±0.167   t = 3.30
+//     95% итгэлийн завсар     +0.224 … +0.879R
+//     bootstrap 20000 дахин   тэгээс дээш байх магадлал 99.9%
+//
+//     Хоёр хагас үе ХОЁУЛАА эерэг:
+//       2005–2015  n=31  +0.425R
+//       2016–2026  n=29  +0.687R
+//
+//     Цөөн азаас гараагүй:
+//       хамгийн сайн 3-ыг хассан  +0.475R
+//       хамгийн сайн 5-ыг хассан  +0.420R
+//
+//     Гарцын шалтгаан: зорилт 35% (+1.99R), стоп 33% (−1.01R),
+//     хугацаа 32% (+0.60R). Ялсан 60%.
+//
+//     ГЭХДЭЭ 21 жилд ердөө 60 арилжаа — жилд ~3. Хэдэн сараар
+//     дүгнэлт хийх боломжгүй. Мөн бүхэлдээ алт ӨСӨЖ байсан үеийн
+//     өгөгдөл дээр суусан хэвээр.
+//
+//  ── ЮУ БАТЛАГДААГҮЙ (кодод ОРООГҮЙ, битгий нэм) ──────────────────
+//   · Чиглэл таамаглах — 37 тест, зардлын дараа тэг
+//   · Макро өгөгдөл: VIX, DXY, өгөөжийн муруй, зээлийн спред, S&P,
+//     тос, биткойн — нэг ч тестэд өөрчлөлт аваачраагүй
+//   · Машин сургалт — ATR-14-ээс илүү гарсангүй
+//   · Фибоначчи (d7): санамсаргүй түвшнээс ДУТУУ оргилтой (14% vs
+//     32%). Зурвас нь 3 ATR тул «фибо f» = «3f ATR» — тэг мэдээлэл.
+//   · Dow-гийн бүтэц (c9), Elliott-ийн өвөрмөц мэдэгдлүүд (d1)
+//   · Олон давхрага НИЙЦЭХ (d4): бүрэн эгнээ хамгийн МУУ +0.619R,
+//     2/4 эгнээ +0.911R. Мөн 66% тохиолдолд аль хэдийн эгнэсэн
+//     байдаг тул шүүлтүүр болж чадахгүй.
+//   · Дугуй тоо, pivot, өчигдрийн дээд/доод (c6) — бүгд тэг
+//   · Шахалтын эхлэлийн цэгээс буцалт (c5) — хяналтаас БАГА
+//   · Шахалтын өдөр тоолох (c1) — 1-2 дахь ба 6+ дахь өдөр ижил
+//
+//  ── ХАМГИЙН ЧУХАЛ ХЯЗГААР ────────────────────────────────────────
+//   Ашиг нь алтны урт хугацааны ӨСӨЛТӨӨС ирж байна. 2012–2015
+//   буурлын үед шахагдсан бүлэг +0.016R — бараг тэг (харин тэлсэн
+//   бүлэг −0.333R). Өөрөөр хэлбэл шахалт бол ирмэг БИШ,
+//   АЛДАГДЛААС ХАМГААЛАХ ШҮҮЛТҮҮР.
+//
+//   Мөн задралын үргэлжлэл нь маш тархсан: 5%-д 0.21 ATR, медиан
+//   1.75, 95%-д 7.97 — 38 дахин зөрүү. 12% нь 0.5 ATR ч явахгүй
+//   унтардаг. Энэ бол амлалт биш, магадлал.
+//
+//  ── БОГИНО ТАЛ ───────────────────────────────────────────────────
+//   Доош задрал БҮХ тестэд алдагдалтай: 2016–2026 −0.112R,
+//   2005–2015 −0.146R. Үргэлжлэл 1.30 ATR атлаа таталт 1.77 —
+//   харьцаа 0.73 (дээш талд 1.63). Код нь доош задралыг ЗӨВХӨН
+//   мэдээлэл болгон харуулна, арилжааны дохио БИШ.
+// ─────────────────────────────────────────────────────────────────────
+
+//@version=6
+indicator("Шахалт — XAUUSD судалгааны загвар", "ШАХАЛТ", overlay = true)
+
+// ── Оролтууд ─────────────────────────────────────────────────────────
+gS = "Шахалт"
+atrFast = input.int(14, "Хурдан ATR", minval = 2, group = gS,
+     tooltip = "Судалгаанд 14. Маргаашийн өдрийн мужийн 90% нь энэ " +
+     "ATR-ийн 1.63 дахинд багтдаг — 2020-2025 зургаан жилд 1.58…1.70. " +
+     "Ковид, инфляци, алтны өсөлт гурван өөр дэглэмд ижил.")
+atrSlow = input.int(100, "Удаан ATR", minval = 20, group = gS)
+sqThr = input.float(0.80, "Шахалтын босго", minval = 0.1, step = 0.01,
+     group = gS, tooltip = "ATR14/ATR100 ≤ энэ утга бол шахагдсан. " +
+     "Судалгаанд 0.80 буюу доод 20 хувь.")
+
+gB = "Хил"
+maLen = input.int(20, "Дундажийн урт", minval = 2, group = gB)
+bandMult = input.float(1.5, "ATR үржигдэхүүн", minval = 0.1, step = 0.1,
+     group = gB, tooltip = "Дундаж ± 1.5 ATR. Зурвасын өргөн ингэснээр " +
+     "ЯГ 3 ATR болно — d7-д хэмжихэд 3.000. Хилийн нарийн сонголт бага " +
+     "нөлөөтэй (бүх хувилбар +0.30…+0.42R).")
+
+gF = "Шүүлтүүр"
+posMin = input.float(0.50, "Хамгийн бага байрлал", minval = 0, maxval = 1,
+     step = 0.05, group = gF,
+     tooltip = "Хаалт зурвасын хаана байна вэ (0 = доод хил, 1 = дээд). " +
+     "d3: доод хилд ойр +0.064R, дунд +0.460R, дээд +0.810R. Дээш " +
+     "задралын ирмэг бүхэлдээ дээд байрлалд төвлөрчээ.")
+posStrong = input.float(0.67, "Хүчтэй байрлал", minval = 0, maxval = 1,
+     step = 0.05, group = gF)
+useLeg = input.bool(true, "Хөлийн чиглэлийг шалгах", group = gF,
+     tooltip = "d1: сүүлийн эргэлтээс хойшхи чиглэлтэй ижил задрал " +
+     "+0.671R, эсрэг +0.485R (2016-2026 шударга гадуур шалгалт).")
+zzPct = input.float(3.0, "Эргэлтийн хувь %", minval = 0.1, step = 0.1,
+     group = gF, tooltip = "2%, 3%, 5% гурвуулаа эерэг. 3% нь дунд нь.")
+vdirLen = input.int(5, "Идэвхийн чиглэлийн урт", minval = 2, group = gF,
+     tooltip = "d2: сүүлийн N барын (дээш барын идэвх − доош барын " +
+     "идэвх) ÷ нийт. ДЭМЖИХ хүчин зүйл, гол шүүлтүүр БИШ — хэмжээ нь " +
+     "2005-2015 ба 2016-2026 хооронд 5 дахин зөрдөг.")
+
+gT = "Арилжаа"
+stopAtr = input.float(2.0, "Стоп (ATR)", minval = 0.1, step = 0.1,
+     group = gT, tooltip = "Задарсны дараах таталтын 65–70% нь 2 ATR " +
+     "дотор багтана. 1.6 ATR-аас дотогш тавибал 10 өдрийн 1-д зүгээр " +
+     "л хэлбэлзэлд цохиулна.")
+t1Atr = input.float(1.0, "Зорилт 1 (ATR)", minval = 0.1, step = 0.1,
+     group = gT, tooltip = "74% хүрдэг. 2 ATR — 45%, 3 ATR — 26%.")
+t2Atr = input.float(4.0, "Зорилт 2 (ATR)", minval = 0.1, step = 0.1,
+     group = gT, tooltip = "e1-д энэ кодын логикоор шалгахад 3.8–4.0 " +
+     "ATR дээр R тэгширнэ (4.0 → +0.551R, 3.8 → +0.517R, 3.0 → +0.398R, " +
+     "6.0 → +0.396R). Түүнээс цааш зорилт нэмэхэд R өсөхгүй, зөвхөн " +
+     "шийдэгдэхгүй арилжаа олшроно.")
+maxBars = input.int(5, "Задрал хүлээх бар", minval = 1, group = gT,
+     tooltip = "Задрал ихэвчлэн 2.7–3.2 барт ирдэг. 5-д ирэхгүй бол " +
+     "болих.")
+holdBars = input.int(15, "Барих дээд бар", minval = 1, group = gT)
+
+gV = "Харагдац"
+showBands = input.bool(true, "Зурвас харуулах", group = gV)
+showLvls = input.bool(true, "Түвшин харуулах", group = gV)
+showPanel = input.bool(true, "Самбар харуулах", group = gV)
+showShort = input.bool(true, "Доош задралыг тэмдэглэх", group = gV,
+     tooltip = "ЗӨВХӨН мэдээлэл. Богино тал бүх тестэд алдагдалтай.")
+panelPos = input.string("Баруун дээд", "Самбарын байрлал", group = gV,
+     options = ["Баруун дээд", "Баруун доод", "Зүүн дээд", "Зүүн доод"])
+txtSize = input.string("Жижиг", "Бичгийн хэмжээ", group = gV,
+     options = ["Маш жижиг", "Жижиг", "Дунд"])
+
+gSe = "Сесс"
+tzStr = input.string("UTC", "Цагийн бүс", group = gSe)
+sAsia = input.session("0000-0800", "Ази", group = gSe)
+sLon = input.session("0800-1300", "Лондон", group = gSe)
+sNY = input.session("1300-2100", "Нью-Йорк", group = gSe)
+
+// ── Өнгө ─────────────────────────────────────────────────────────────
+cGood = #26a69a
+cWarn = #f4a13a
+cBad  = #ef5350
+cDim  = #787b86
+cInk  = #d1d4dc
+cBg   = color.new(#1b1f2a, 15)
+cHead = color.new(#2a3142, 0)
+
+// ── Суурь тооцоо ─────────────────────────────────────────────────────
+// ta.atr() нь Уайлдерын жигдрүүлэлт (RMA) — судалгаа нь ЭНГИЙН дундаж
+// ашигласан (tr.rolling(n).mean()). Хоёр нь өөр тоо өгдөг тул энд
+// судалгааных нь давтагдана.
+tr   = ta.tr(true)
+atrF = ta.sma(tr, atrFast)
+atrS = ta.sma(tr, atrSlow)
+sq   = atrS > 0 ? atrF / atrS : na
+
+basis = ta.sma(close, maLen)
+upB   = basis + bandMult * atrF
+dnB   = basis - bandMult * atrF
+wid   = upB - dnB
+pos   = wid > 0 ? (close - dnB) / wid : na
+
+sqOn    = not na(sq) and sq <= sqThr
+sqStart = sqOn and not sqOn[1]
+// ta.barssince нь төлөвтэй тул ЗААВАЛ болзолгүй дуудагдана — гурвалсан
+// илэрхийлэл дотор дуудвал түүх нь тасарч буруу тоо өгнө.
+bsSq  = ta.barssince(not sqOn)
+sqLen = sqOn ? nz(bsSq) : 0
+
+// Идэвхийн чиглэл (d2). Tick идэвх байхгүй тэжээлд na болно.
+vRaw = nz(volume)
+vSgn = close > close[1] ? vRaw : close < close[1] ? -vRaw : 0.0
+vTot = math.sum(vRaw, vdirLen)
+vdir = vTot > 0 ? math.sum(vSgn, vdirLen) / vTot : na
+
+// Сесс
+inAsia = not na(time(timeframe.period, sAsia, tzStr))
+inLon  = not na(time(timeframe.period, sLon, tzStr))
+inNY   = not na(time(timeframe.period, sNY, tzStr))
+
+// ── Хөлийн чиглэл ба анкрын төлөв ────────────────────────────────────
+// Эдгээр нь `var` тул барын ЭХЭНД өмнөх барын утгыг барина. Дохиог
+// эхэлж бодож, дараа нь шинэчилдэг — ингэснээр тухайн бар өөрийн
+// хилээр өөрийгөө баталгаажуулахгүй (харагдах ирээдүй үүсэхгүй).
+var int   leg = 1
+var float ext = na
+
+var float aUp    = na       // анкрын дээд хил
+var float aDn    = na       // анкрын доод хил
+var float aAtr   = na       // анкрын ATR
+var float aPos   = na       // анкрын байрлал
+var int   aBar   = na       // анкрын бар
+var bool  aLive  = false    // тохиргоо идэвхтэй
+var bool  aFired = false    // энэ зэвсэглэлд задрал аль хэдийн болсон
+
+var float tEntry = na
+var float tStop  = na
+var float tT1    = na
+var float tT2    = na
+var int   tBar   = na
+var bool  tOpen  = false
+var bool  tHit1  = false
+
+// ── Дохио ────────────────────────────────────────────────────────────
+waited = na(aBar) ? 0 : bar_index - aBar
+fresh  = aLive and not aFired and waited >= 1 and waited <= maxBars
+legOk  = not useLeg or leg == 1
+posOk  = not na(aPos) and aPos >= posMin
+
+// Нээлт хилээс хэтэрсэн бол ХИЛ ДЭЭР ОРОХ БОЛОМЖГҮЙ — жинхэнэ оролт нь
+// нээлтийн үнэ. c8-д энэ занга баригдсан (+0.527R → +0.219R) боловч
+// d3/d5 руу дамжаагүй байв: тэдний `collect` нь `open`-ийг огт
+// хардаггүй. e1/e2-д хэмжихэд гажуудал нь давхрага бүрд −0.18…−0.33R.
+//
+// Алгасах нь ХЭТ ХАТУУ (өдрийн графикт 60 тохиргооны 18-ыг хаядаг,
+// R нь +0.551 → +0.466 болж БУУРДАГ). Зөв нь: орж, гэхдээ нээлтийн
+// үнээр — стоп ба зорилтыг тэрнээс нь хэмжинэ.
+gapUp = not na(aUp) and open >= aUp
+
+brkUp = fresh and not na(aUp) and high >= aUp
+brkDn = fresh and not na(aDn) and low <= aDn
+entryPx = gapUp ? open : aUp
+
+longSig = brkUp and posOk and legOk and not tOpen
+missUp  = brkUp and not (posOk and legOk)
+
+// Нэг зэвсэглэлд нэг л задрал. Шахалт үргэлжилж байвал доор дахин
+// зэвсэглэнэ — судалгаанд шахагдсан бар бүр өөрийн нэр дэвшигч байсан.
+if brkUp or brkDn
+    aFired := true
+
+// ── Арилжааны төлөв ──────────────────────────────────────────────────
+if longSig
+    tEntry := entryPx
+    tStop  := entryPx - stopAtr * aAtr
+    tT1    := entryPx + t1Atr * aAtr
+    tT2    := entryPx + t2Atr * aAtr
+    tBar   := bar_index
+    tOpen  := true
+    tHit1  := false
+
+// Стоп ТҮРҮҮЛЖ шалгагдана — судалгаатай ижил дараалал. Барын дотор
+// аль нь эхэлснийг мэдэх аргагүй тул муу талыг нь сонгоно.
+if tOpen
+    if low <= tStop
+        tOpen := false
+    else
+        if high >= tT1
+            tHit1 := true
+        if high >= tT2
+            tOpen := false
+        else if bar_index - tBar >= holdBars
+            tOpen := false
+
+// ── Хөлийн чиглэлийг шинэчлэх (дохионы ДАРАА) ────────────────────────
+if na(ext)
+    ext := close
+if leg == 1
+    ext := math.max(ext, high)
+    if low <= ext * (1 - zzPct / 100)
+        leg := -1
+        ext := low
+else
+    ext := math.min(ext, low)
+    if high >= ext * (1 + zzPct / 100)
+        leg := 1
+        ext := high
+
+// ── Анкрыг шинэчлэх ──────────────────────────────────────────────────
+if sqOn
+    aUp    := upB
+    aDn    := dnB
+    aAtr   := atrF
+    aPos   := pos
+    aBar   := bar_index
+    aLive  := true
+    aFired := false
+else if aLive and waited > maxBars
+    aLive := false
+
+// ── Зураглал ─────────────────────────────────────────────────────────
+pU = plot(showBands ? upB : na, "Дээд хил", color.new(cDim, 30), 1)
+pD = plot(showBands ? dnB : na, "Доод хил", color.new(cDim, 30), 1)
+plot(showBands ? basis : na, "Дундаж", color.new(cDim, 60), 1)
+fill(pU, pD, sqOn ? color.new(cWarn, 92) : color.new(cDim, 97), "Зурвас")
+
+aShow = aLive and not aFired
+plot(showLvls and aShow ? aUp : na, "Анкр дээд", color.new(cGood, 0), 2,
+     plot.style_linebr)
+plot(showLvls and aShow ? aDn : na, "Анкр доод", color.new(cBad, 55), 1,
+     plot.style_linebr)
+
+plot(showLvls and tOpen ? tEntry : na, "Оролт", color.new(cInk, 0), 1,
+     plot.style_linebr)
+plot(showLvls and tOpen ? tStop : na, "Стоп", color.new(cBad, 0), 1,
+     plot.style_linebr)
+plot(showLvls and tOpen ? tT1 : na, "Зорилт 1", color.new(cGood, 45), 1,
+     plot.style_linebr)
+plot(showLvls and tOpen ? tT2 : na, "Зорилт 2", color.new(cGood, 0), 1,
+     plot.style_linebr)
+
+bgcolor(sqOn ? color.new(cWarn, 94) : na, title = "Шахалтын дэвсгэр")
+
+plotshape(sqStart, "Шахалт эхэллээ", shape.diamond, location.belowbar,
+     color.new(cWarn, 0), size = size.tiny)
+plotshape(longSig, "ДЭЭШ задрал — оролт", shape.triangleup,
+     location.belowbar, color.new(cGood, 0), size = size.small)
+plotshape(missUp, "Задрал — шүүлтүүр давсангүй", shape.circle,
+     location.belowbar, color.new(cDim, 25), size = size.tiny)
+plotshape(showShort and brkDn, "Доош задрал (зөвхөн мэдээлэл)",
+     shape.xcross, location.abovebar, color.new(cBad, 40), size = size.tiny)
+
+// ── Самбар ───────────────────────────────────────────────────────────
+// Давхрага бүрийн хүлээлт. Эдгээр нь d5-ийн тоо БИШ — e2-д ЯГ ЭНЭ
+// кодын логикоор, жинхэнэ оролтын үнээр дахин хэмжсэн тоо. d5 нь хил
+// дээр орлоо гэж тооцсон тул бүх давхрагад 0.18–0.33R-ээр өөдрөг
+// байсан бөгөөд доод давхрагын ирмэг нь бүхэлдээ тэр таамгаас гарч
+// байжээ.
+tfm = timeframe.in_seconds() / 60.0
+expR = tfm >= 1440 ? 0.55 : tfm >= 480 ? 0.11 : tfm >= 360 ? 0.09 :
+       tfm >= 240 ? 0.19 : tfm >= 180 ? 0.17 : tfm >= 120 ? 0.22 :
+       tfm >= 60 ? 0.03 : na
+tfNote = tfm >= 1440 ? "ЦОРЫН ГАНЦ баттай · жилд 3 · 13/20 жил" :
+         tfm >= 480 ? "сул · 9/15 жил" :
+         tfm >= 360 ? "сул · 8/15 жил" :
+         tfm >= 240 ? "сул · 9/16 жил" :
+         tfm >= 180 ? "сул · 8/17 жил" :
+         tfm >= 120 ? "сул · 14/17 жил" :
+         tfm >= 60 ? "БАРАГ ТЭГ · спред идчихнэ" : "судалгаанд СӨРӨГ"
+tfCol = tfm >= 1440 ? cGood : tfm >= 120 ? cWarn : cBad
+
+sess    = inLon ? "Лондон" : inAsia ? "Ази" : inNY ? "Нью-Йорк" : "гадуур"
+sessR   = inLon ? "+0.431R" : inAsia ? "+0.359R" : inNY ? "+0.086R" : "—"
+sessCol = inLon or inAsia ? cGood : inNY ? cBad : cDim
+
+sqCol = sqOn ? cGood : not na(sq) and sq >= 1.2 ? cBad : cWarn
+sqTxt = sqOn ? "ШАХАГДСАН · " + str.tostring(sqLen) + " бар" :
+        not na(sq) and sq >= 1.2 ? "тэлсэн · 5х-т 2.30 ATR" : "дунд"
+
+posNow = not na(pos) and pos >= posMin
+posCol = na(pos) ? cDim : pos >= posStrong ? cGood : posNow ? cWarn : cBad
+// d3-ийн +0.810/+0.460/+0.064R нь шахагдсан бар БҮРЭЭР хуваасан тоо.
+// Энэ хэрэгжилтэд анкр нь задралын өмнөх бар тул байрлал бараг үргэлж
+// дээгүүр гардаг — e1-д шүүлтүүр нь R-ийг +0.551-ээс +0.571 л болгов.
+// Тиймээс энд ЗӨВХӨН мэдээлэл, шүүлтүүр гэж бүү найд.
+posTxt = na(pos) ? "—" : pos >= posStrong ? "дээд хилд ойр" :
+         posNow ? "дунд" : "доод хилд ойр · сул"
+
+legTxt = leg == 1 ? "ДЭЭШ" : "доош"
+legCol = leg == 1 ? cGood : cBad
+legNote = leg == 1 ? "задралтай ижил · шүүлтүүр давав" :
+          "эсрэг · задралыг алгас (+0.55R → +0.52R)"
+
+vCol = na(vdir) ? cDim : vdir >= 0.15 ? cGood : vdir <= -0.15 ? cBad : cWarn
+vTxt = na(vdir) ? "идэвхийн өгөгдөл алга" :
+       vdir >= 0.15 ? "дээш төвлөрсөн" :
+       vdir <= -0.15 ? "доош төвлөрсөн" : "тэгш"
+
+// Дүгнэлт — sqOn эхэнд шалгагдана, эс бөгөөс үргэлжилж буй шахалт
+// «задрал хүлээж байна» гэж буруу гарна.
+verdict = ""
+vdCol = cDim
+if tOpen
+    verdict := "АРИЛЖАА ЯВЖ БАЙНА" + (tHit1 ? " · зорилт 1 хүрсэн" : "")
+    vdCol := cGood
+else if sqOn and not posNow
+    verdict := "Шахагдсан ч ДООД байрлал — байрлалын шүүлтүүр таслав"
+    vdCol := cBad
+else if sqOn and not legOk
+    verdict := "Шахагдсан ч хөл ДООШ — задралыг алгас"
+    vdCol := cWarn
+else if sqOn
+    verdict := "БЭЛЭН — дээд хил дээр ор, баталгаа бүү хүлээ"
+    vdCol := cGood
+else if aShow and waited >= 1 and waited <= maxBars
+    verdict := "ЗАДРАЛ ХҮЛЭЭЖ БАЙНА — " + str.tostring(maxBars - waited) +
+         " бар үлдэв"
+    vdCol := cWarn
+else
+    verdict := "Тохиргоо идэвхгүй — шахалт алга (sq > " +
+         str.tostring(sqThr, "#.00") + ")"
+    vdCol := cDim
+
+pPos = panelPos == "Баруун дээд" ? position.top_right :
+       panelPos == "Баруун доод" ? position.bottom_right :
+       panelPos == "Зүүн дээд" ? position.top_left : position.bottom_left
+pSz = txtSize == "Маш жижиг" ? size.tiny :
+      txtSize == "Жижиг" ? size.small : size.normal
+
+var table pnl = table.new(pPos, 3, 15, border_width = 1,
+     border_color = color.new(#2a3142, 40), frame_width = 1,
+     frame_color = color.new(#2a3142, 20))
+
+row(int r, string a, string b, string c, color col) =>
+    table.cell(pnl, 0, r, a, text_color = cInk, text_size = pSz,
+         bgcolor = cBg, text_halign = text.align_left)
+    table.cell(pnl, 1, r, b, text_color = col, text_size = pSz,
+         bgcolor = cBg, text_halign = text.align_right)
+    table.cell(pnl, 2, r, c, text_color = color.new(col, 30),
+         text_size = pSz, bgcolor = cBg, text_halign = text.align_left)
+
+span(int r, string s, color fg, color bg) =>
+    table.cell(pnl, 0, r, s, text_color = fg, text_size = pSz,
+         bgcolor = bg, text_halign = text.align_left)
+    table.cell(pnl, 1, r, "", bgcolor = bg)
+    table.cell(pnl, 2, r, "", bgcolor = bg)
+    table.merge_cells(pnl, 0, r, 2, r)
+
+f2(float x) => na(x) ? "—" : str.tostring(x, format.mintick)
+
+// Түвшнүүд: арилжаа явж байвал түүнийх, эс бөгөөс одоогийн хил.
+lvlBase = tOpen ? tEntry : aShow ? aUp : upB
+lvlAtr  = tOpen ? aAtr : aShow ? aAtr : atrF
+lvlAtr2 = na(lvlAtr) ? atrF : lvlAtr
+
+if showPanel and barstate.islast
+    // Нэгтгэсэн нүдийг дахин бичиж болдоггүй тул эхлээд цэвэрлэнэ.
+    table.clear(pnl, 0, 0, 2, 14)
+    span(0, "ШАХАЛТЫН САМБАР · " + syminfo.ticker + " · " +
+         timeframe.period, cInk, cHead)
+    row(1, "Шахалт " + str.tostring(atrFast) + "/" + str.tostring(atrSlow),
+         na(sq) ? "—" : str.tostring(sq, "#.00"), sqTxt, sqCol)
+    row(2, "Байрлал зурваст", na(pos) ? "—" : str.tostring(pos, "#.00"),
+         posTxt, posCol)
+    row(3, "Хөл · эргэлт " + str.tostring(zzPct, "#.#") + "%", legTxt,
+         legNote, legCol)
+    row(4, "Идэвхийн чиглэл", na(vdir) ? "—" : str.tostring(vdir, "#.00"),
+         vTxt, vCol)
+    row(5, "Сесс", sess, sessR, sessCol)
+    row(6, "Давхрага", timeframe.period,
+         (na(expR) ? "—" : "+" + str.tostring(expR, "#.00") + "R") + " · " +
+         tfNote, tfCol)
+    row(7, "Хил", f2(dnB) + " … " + f2(upB),
+         (atrF > 0 ? str.tostring(wid / atrF, "#.00") : "—") + " ATR", cDim)
+    row(8, "Оролт · дээд хил", f2(lvlBase),
+         gapUp and aShow ? "нээлт ХЭТЭРСЭН — нээлтийн үнээр" :
+         "баталгаа хүлээхгүй", gapUp and aShow ? cWarn : cInk)
+    row(9, "Стоп · " + str.tostring(stopAtr, "#.#") + " ATR",
+         f2(lvlBase - stopAtr * lvlAtr2), "= 1R", cBad)
+    row(10, "Зорилт 1 · " + str.tostring(t1Atr, "#.#") + " ATR",
+         f2(lvlBase + t1Atr * lvlAtr2),
+         "74% хүрдэг · " + str.tostring(t1Atr / stopAtr, "#.0") + "R", cGood)
+    row(11, "Зорилт 2 · " + str.tostring(t2Atr, "#.#") + " ATR",
+         f2(lvlBase + t2Atr * lvlAtr2),
+         "68% шийдэгддэг · " + str.tostring(t2Atr / stopAtr, "#.0") + "R",
+         cGood)
+    row(12, "Богино тал", "БҮҮ АВ", "−0.11R … −0.15R бүх үед", cBad)
+    span(13, verdict, vdCol, cBg)
+    span(14, "ЗӨВХӨН өдрийн график баттай · жилд ~3 тохиргоо · ирмэг нь " +
+         "алтны ӨСӨЛТӨӨС хамаарна", color.new(cDim, 10), cBg)
+
+// ── Сэрэмжлүүлэг ─────────────────────────────────────────────────────
+alertcondition(sqStart, "Шахалт эхэллээ",
+     "Шахалт эхэллээ — тохиргоо идэвхжив")
+alertcondition(longSig, "ДЭЭШ задрал — оролт",
+     "ДЭЭШ задрал: бүх шүүлтүүр давлаа")
+alertcondition(brkDn, "Доош задрал (мэдээлэл)",
+     "Доош задрал — судалгаагаар алдагдалтай, арилжааны дохио БИШ")
+
+if sqStart
+    alert("ШАХАЛТ ЭХЭЛЛЭЭ · " + syminfo.ticker + " " + timeframe.period +
+         "\nsq = " + str.tostring(sq, "#.00") +
+         "\nХил: " + f2(dnB) + " … " + f2(upB) +
+         "\nБайрлал: " + str.tostring(pos, "#.00") + " · " + posTxt +
+         "\nХөл: " + legTxt +
+         "\nЗадрал 5 барт ирэхгүй бол болих.",
+         alert.freq_once_per_bar_close)
+
+if longSig
+    alert("ДЭЭШ ЗАДРАЛ · " + syminfo.ticker + " " + timeframe.period +
+         "\nОролт " + f2(tEntry) + "   Стоп " + f2(tStop) +
+         "\nЗорилт1 " + f2(tT1) + "   Зорилт2 " + f2(tT2) +
+         "\nБайрлал " + str.tostring(aPos, "#.00") +
+         " · Сесс " + sess + " " + sessR +
+         "\nХүлээлт " + (na(expR) ? "—" : "+" + str.tostring(expR, "#.00") +
+         "R") + " (" + timeframe.period + ")",
+         alert.freq_once_per_bar_close)
