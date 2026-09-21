@@ -247,13 +247,13 @@ plotshape(showShort and brkDn, "Доош задрал (зөвхөн мэдээл
 tfm = timeframe.in_seconds() / 60.0
 isDay = tfm >= 1440
 tfTxt = isDay ? "+0.55R · 61% ялсан · жилд 3" :
-        tfm >= 60 ? "ТЭГ эсвэл СӨРӨГ — өдрийн график ашигла" :
-        "судалгаанд СӨРӨГ"
+         tfm >= 60 ? "ТЭГ эсвэл СӨРӨГ — өдрийн график ашигла" :
+         "судалгаанд СӨРӨГ"
 tfCol = isDay ? cGood : cBad
 
 sqCol = sqOn ? cGood : not na(sq) and sq >= 1.2 ? cBad : cWarn
 sqTxt = sqOn ? "ШАХАГДСАН · " + str.tostring(sqLen) + " бар" :
-        not na(sq) and sq >= 1.2 ? "тэлсэн" : "дунд"
+         not na(sq) and sq >= 1.2 ? "тэлсэн" : "дунд"
 
 verdict = ""
 vdCol = cDim
