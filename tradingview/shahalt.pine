@@ -314,7 +314,7 @@ tfm = timeframe.in_seconds() / 60.0
 isDay = tfm >= 1440
 tfTxt = isDay ? "+0.55R · 61% ялсан · жилд 3" :
          tfm >= 60 ? "ТЭГ эсвэл СӨРӨГ — өдрийн график ашигла" :
-         "судалгаанд СӨРӨГ"
+         "−0.16R · t=−12 · 17 жилийн 1-д л эерэг · БҮҮ АРИЛЖАА"
 tfCol = isDay ? cGood : cBad
 
 sqCol = sqOn ? cGood : not na(sq) and sq >= 1.2 ? cBad : cWarn
